@@ -74,10 +74,23 @@ class MLRequestViewSet(
 class PredictView(views.APIView):
     def post(self, request, endpoint_name, format=None):
 
+        print("Endpoint name ", endpoint_name)
+
         algorithm_status = self.request.query_params.get("status", "production")
         algorithm_version = self.request.query_params.get("version")
 
+        print("Parent endpoint name ", endpoint_name)
+        print("Algorithm status ", algorithm_status)
+
+        # TEMPORARY SETTINGS - WHILE DEBUGGING THE ALGO
+        algorithm_status = "production"
+        algorithm_version = "0.0.1"
         algs = MLAlgorithm.objects.filter(parent_endpoint__name = endpoint_name, status__status = algorithm_status, status__active=True)
+
+        print("Number of alg matches found", len(algs))
+
+        print("Requested alg version =  ", algorithm_version)
+        print("MLA found version =  ", algs.filter(version = algorithm_version))
 
         if algorithm_version is not None:
             algs = algs.filter(version = algorithm_version)
@@ -87,16 +100,24 @@ class PredictView(views.APIView):
                 {"status": "Error", "message": "ML algorithm is not available"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if len(algs) != 1 and algorithm_status != "ab_testing":
-            return Response(
-                {"status": "Error", "message": "ML algorithm selection is ambiguous. Please specify algorithm version."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        alg_index = 0
+        # if len(algs) != 1 and algorithm_status != "ab_testing":
+        #     return Response(
+        #         {"status": "Error", "message": "ML algorithm selection is ambiguous. Please specify algorithm version."},
+        #         status=status.HTTP_400_BAD_REQUEST,
+        #     )
+        #alg_index = 0
+        # Pick the most recent one if duplicates are found
+        alg_index = len(algs)-1
+
         if algorithm_status == "ab_testing":
             alg_index = 0 if rand() < 0.5 else 1
 
+        print("ALG ID IDENTIFIED = ", algs[alg_index].id)
+
+
         algorithm_object = registry.endpoints[algs[alg_index].id]
+
+
         prediction = algorithm_object.compute_prediction(request.data)
 
 
